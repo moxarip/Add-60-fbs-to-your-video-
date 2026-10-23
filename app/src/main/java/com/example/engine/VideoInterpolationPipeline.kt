@@ -189,11 +189,10 @@ object VideoInterpolationPipeline {
         val totalInputFrames = source.totalFrames.coerceIn(8, 300)
         val estimatedTotalOut = (totalInputFrames - 1) * multiplier + 1
 
-        val outDir = File(context.filesDir, "interpolated_outputs").apply { mkdirs() }
-        val outFile = File(
-            outDir,
-            "FlowRIFE_${settings.model.id}_${settings.target.id}_${System.currentTimeMillis()}.mp4"
-        )
+        // 1. Write MediaMuxer output to a temporary file inside CacheDir first
+        val tempCacheDir = File(context.cacheDir, "muxer_staging").apply { mkdirs() }
+        val finalFileName = "FlowRIFE_${settings.model.id}_${settings.target.id}_${System.currentTimeMillis()}.mp4"
+        val tempMuxFile = File(tempCacheDir, "pending_$finalFileName")
 
         val workW = (min(480, source.width) / 16) * 16
         val workH = (min(272, source.height) / 16) * 16
@@ -217,7 +216,7 @@ object VideoInterpolationPipeline {
 
         try {
             try {
-                muxer = MediaMuxer(outFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+                muxer = MediaMuxer(tempMuxFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
                 val outVideoFps = if (settings.timingMode == OutputTimingMode.SLOW_MOTION) {
                     source.sourceFps.roundToInt().coerceAtLeast(15)
                 } else {
@@ -396,6 +395,23 @@ object VideoInterpolationPipeline {
                 )
             }
 
+            // Close and flush encoder + MediaMuxer before exporting temp file to MediaStore
+            try {
+                videoEncoder?.stop()
+                videoEncoder?.release()
+                videoEncoder = null
+            } catch (_: Throwable) {
+            }
+            try {
+                if (muxerStarted) {
+                    muxer?.stop()
+                    muxerStarted = false
+                }
+                muxer?.release()
+                muxer = null
+            } catch (_: Throwable) {
+            }
+
             // Lossless Audio Passthru (if enabled and in Realtime Smooth mode)
             if (settings.audioPassthruEnabled &&
                 settings.timingMode == OutputTimingMode.REALTIME_SMOOTH &&
@@ -403,6 +419,16 @@ object VideoInterpolationPipeline {
             ) {
                 audioPacketsCopied = performDirectAudioPassthruCount(context, source)
             }
+
+            // 2. Export completed temporary file from CacheDir to MediaStore (Movies/FlowRIFE) with IS_PENDING = 0
+            val exportResult = VideoMediaStoreExporter.exportTempVideoToMediaStore(
+                context = context,
+                tempCacheFile = tempMuxFile,
+                desiredFileName = finalFileName,
+                durationMs = (lastPtsUs / 1000L).coerceAtLeast(source.durationMs),
+                width = workW,
+                height = workH
+            )
 
             val finalElapsedMs = max(1L, System.currentTimeMillis() - startWallMs)
             val avgFps = (generatedOutCount * 1000f) / finalElapsedMs.toFloat()
@@ -423,8 +449,10 @@ object VideoInterpolationPipeline {
                 lastCalculatedPtsUs = lastPtsUs,
                 currentRamUsedMb = queryUsedRamMb(),
                 peakRamUsedMb = peakRamMb,
-                outputFilePath = outFile.absolutePath,
-                outputFileSizeBytes = if (outFile.exists()) outFile.length() else 0L
+                outputFilePath = exportResult.publicDisplayPath,
+                exportedMediaStoreUri = exportResult.mediaStoreUri,
+                publicDisplayPath = exportResult.publicDisplayPath,
+                outputFileSizeBytes = exportResult.fileSizeBytes
             )
         } catch (ce: CancellationException) {
             throw ce

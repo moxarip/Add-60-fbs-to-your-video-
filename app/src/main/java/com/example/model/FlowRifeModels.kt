@@ -184,6 +184,8 @@ data class InterpolationJob(
     val batteryTempCelsius: Float = 33.5f,
     val thermalStatusLabel: String = "Nominal (مستقر)",
     val outputFilePath: String? = null,
+    val exportedMediaStoreUri: String? = null,
+    val publicDisplayPath: String? = null,
     val outputFileSizeBytes: Long = 0L,
     val errorMessage: String? = null
 )

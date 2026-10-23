@@ -19,10 +19,13 @@ import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlayCircleFilled
 import androidx.compose.material.icons.filled.QueuePlayNext
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Timer
@@ -40,10 +43,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.engine.VideoMediaStoreExporter
 import com.example.model.InterpolationJob
 import com.example.model.JobStatus
 import com.example.ui.theme.AmberSceneCut
@@ -84,7 +89,7 @@ fun QueueScreen(
                     color = TextPrimary
                 )
                 Text(
-                    text = "MediaCodec Decoder ➔ 2-Frame Ring Buffer ➔ RIFE Vulkan ➔ MediaMuxer",
+                    text = "CacheDir Staging ➔ MediaMuxer ➔ MediaStore (Movies/FlowRIFE)",
                     style = MaterialTheme.typography.labelSmall,
                     color = VulkanCyan
                 )
@@ -150,7 +155,7 @@ private fun EmptyQueueCard(
                 color = TextPrimary
             )
             Text(
-                text = "ابدأ مهمة جديدة من شاشة الاستوديو لمراقبة عداد السرعة اللحظي (FPS)، الوقت المتبقي (ETA)، كشف قطع المشاهد، والمزامنة الصوتية الصارمة.",
+                text = "ابدأ مهمة جديدة من شاشة الاستوديو ليتم تصدير الفيديو النهائي مباشرة إلى المعرض العام في مجلد Movies/FlowRIFE.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextSecondary
             )
@@ -176,10 +181,11 @@ private fun EmptyQueueCard(
 }
 
 @Composable
-private fun JobTelemetryCard(
+fun JobTelemetryCard(
     job: InterpolationJob,
     onCancelOrRemove: () -> Unit
 ) {
+    val context = LocalContext.current
     val progress = if (job.estimatedTotalOutputFrames > 0) {
         (job.generatedOutputFrames.toFloat() / job.estimatedTotalOutputFrames.toFloat()).coerceIn(0f, 1f)
     } else 0f
@@ -369,36 +375,145 @@ private fun JobTelemetryCard(
                 }
             }
 
-            // Audio Passthru + Output MP4 Verification Banner when completed
-            if (job.status == JobStatus.COMPLETED && job.outputFilePath != null) {
+            // Completed MediaStore Export Banner + Play & Share Action Buttons
+            if (job.status == JobStatus.COMPLETED && (job.publicDisplayPath != null || job.outputFilePath != null)) {
+                val fullPath = job.publicDisplayPath ?: job.outputFilePath.orEmpty()
+                val fileNameOnly = fullPath.substringAfterLast('/')
+                val mediaUriStr = job.exportedMediaStoreUri ?: fullPath
+
                 Surface(
                     color = EmeraldSync.copy(alpha = 0.14f),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, EmeraldSync.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, EmeraldSync.copy(alpha = 0.65f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = EmeraldSync
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "تم حفظ ملف الفيديو النهائي بنجاح (MP4 H.264 + Strict PTS)",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = EmeraldSync
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = EmeraldSync
                             )
-                            Text(
-                                text = "المسار: ${job.outputFilePath.substringAfterLast('/')} • الحجم: ${job.outputFileSizeBytes / 1024} KB • حزم الصوت المنسوخة: ${job.audioPacketsCopied} packet",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextSecondary
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "تم تصدير الفيديو إلى المعرض العام بنجاح (MediaStore API)",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EmeraldSync
+                                )
+                                Text(
+                                    text = "الحجم: ${job.outputFileSizeBytes / 1024} KB • حزم الصوت المنسوخة: ${job.audioPacketsCopied} packet • MIME: video/mp4",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+
+                        // Full Public Path Box in Movies/FlowRIFE
+                        Surface(
+                            color = ObsidianBg.copy(alpha = 0.7f),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, BorderSubtle),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FolderSpecial,
+                                    contentDescription = null,
+                                    tint = VulkanCyan,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "المسار العام في المعرض ومدير الملفات:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextSecondary
+                                    )
+                                    Text(
+                                        text = fullPath,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = VulkanCyan
+                                    )
+                                }
+                            }
+                        }
+
+                        // Action Buttons Row: "تشغيل ومعاينة" (ACTION_VIEW) + "مشاركة" (ACTION_SEND)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    VideoMediaStoreExporter.openVideoInSystemPlayer(
+                                        context = context,
+                                        mediaStoreUriString = mediaUriStr
+                                    )
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .testTag("play_exported_video_${job.id}"),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = EmeraldSync,
+                                    contentColor = ObsidianBg
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = "تشغيل ومعاينة",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "تشغيل ومعاينة",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    VideoMediaStoreExporter.shareVideoToApps(
+                                        context = context,
+                                        mediaStoreUriString = mediaUriStr,
+                                        fileName = fileNameOnly
+                                    )
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .testTag("share_exported_video_${job.id}"),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, VulkanCyan)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Share,
+                                    contentDescription = "مشاركة",
+                                    tint = VulkanCyan,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "مشاركة",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = VulkanCyan
+                                )
+                            }
                         }
                     }
                 }
