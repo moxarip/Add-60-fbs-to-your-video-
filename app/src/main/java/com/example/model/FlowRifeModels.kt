@@ -123,6 +123,8 @@ data class VideoSourceMetadata(
     val displayName: String,
     val width: Int,
     val height: Int,
+    val rotationDegrees: Int = 0,
+    val bitrate: Int = 8_000_000,
     val durationMs: Long,
     val sourceFps: Float,
     val totalFrames: Int,

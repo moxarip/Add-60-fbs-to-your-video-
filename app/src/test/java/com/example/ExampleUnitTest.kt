@@ -63,41 +63,52 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun strictPtsCalculation_maintainsExactAudioSyncAndMonotonicity() {
-        val baseDelta24FpsUs = 41_666L // 24 fps = 41,666 us per frame
+    fun extractorSubFramePtsCalculation_preservesFull30SecondDurationAt120Fps() {
+        // 30-second video @ 40fps -> 1200 frames, target 120fps -> multiplier = 3x
+        val sourceFps = 40f
+        val mult = VideoInterpolationPipeline.computeEffectiveMultiplier(
+            sourceFps,
+            InterpolationTarget.TARGET_120FPS
+        )
+        assertEquals(3, mult)
 
-        // 4x Realtime Smooth mode: 4 subframes fit inside 1 original frame duration
-        val pts0 = VideoInterpolationPipeline.computeStrictOutputPtsUs(
-            inputPairIndex = 10,
+        // Last pair of frames in a 30.0-second video: 29,975,000 us -> 30,000,000 us
+        val ptsStartUs = 29_975_000L
+        val ptsEndUs = 30_000_000L
+
+        val sub0 = VideoInterpolationPipeline.computeExtractorSubFramePtsUs(
+            ptsStartUs = ptsStartUs,
+            ptsEndUs = ptsEndUs,
             subFrameIndex = 0,
-            multiplier = 4,
-            outputFrameSequenceIndex = 40,
-            baseFrameDeltaUs = baseDelta24FpsUs,
+            multiplier = mult,
             timingMode = OutputTimingMode.REALTIME_SMOOTH
         )
-        val pts2 = VideoInterpolationPipeline.computeStrictOutputPtsUs(
-            inputPairIndex = 10,
+        val sub1 = VideoInterpolationPipeline.computeExtractorSubFramePtsUs(
+            ptsStartUs = ptsStartUs,
+            ptsEndUs = ptsEndUs,
+            subFrameIndex = 1,
+            multiplier = mult,
+            timingMode = OutputTimingMode.REALTIME_SMOOTH
+        )
+        val sub2 = VideoInterpolationPipeline.computeExtractorSubFramePtsUs(
+            ptsStartUs = ptsStartUs,
+            ptsEndUs = ptsEndUs,
             subFrameIndex = 2,
-            multiplier = 4,
-            outputFrameSequenceIndex = 42,
-            baseFrameDeltaUs = baseDelta24FpsUs,
+            multiplier = mult,
             timingMode = OutputTimingMode.REALTIME_SMOOTH
         )
-        val ptsNextFrame = VideoInterpolationPipeline.computeStrictOutputPtsUs(
-            inputPairIndex = 11,
+        val finalFramePts = VideoInterpolationPipeline.computeExtractorSubFramePtsUs(
+            ptsStartUs = ptsEndUs,
+            ptsEndUs = ptsEndUs,
             subFrameIndex = 0,
-            multiplier = 4,
-            outputFrameSequenceIndex = 44,
-            baseFrameDeltaUs = baseDelta24FpsUs,
+            multiplier = mult,
             timingMode = OutputTimingMode.REALTIME_SMOOTH
         )
 
-        assertEquals(416_660L, pts0)
-        assertTrue(pts2 > pts0 && pts2 < ptsNextFrame)
-        assertEquals(458_326L, ptsNextFrame)
-
-        // Target FPS effective multiplier checks
-        assertEquals(3, VideoInterpolationPipeline.computeEffectiveMultiplier(24f, InterpolationTarget.TARGET_60FPS))
-        assertEquals(5, VideoInterpolationPipeline.computeEffectiveMultiplier(24f, InterpolationTarget.TARGET_120FPS))
+        assertEquals(29_975_000L, sub0)
+        assertEquals(29_983_333L, sub1)
+        assertEquals(29_991_666L, sub2)
+        // Final frame timestamp stays at 30.0 seconds (30,000,000 us), never shrinking to 10s!
+        assertEquals(30_000_000L, finalFramePts)
     }
 }
