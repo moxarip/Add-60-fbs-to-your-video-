@@ -156,3 +156,25 @@ dependencies {
   // "ksp"(libs.androidx.room.compiler)
   // "ksp"(libs.moshi.kotlin.codegen)
 }
+
+val debugApkOutputDir = layout.buildDirectory.dir("outputs/apk/debug").get().asFile
+val rootDebugTargetDir = rootProject.layout.projectDirectory.dir("debug").asFile
+
+val syncDebugApkToRootFolder by tasks.registering {
+  description = "Copies the latest compiled debug APK to /debug/debug.apk on every build and update"
+  val srcDir = debugApkOutputDir
+  val dstDir = rootDebugTargetDir
+  doLast {
+    val sourceApk = srcDir.walkTopDown().firstOrNull { it.isFile && it.extension == "apk" }
+    if (sourceApk != null && sourceApk.exists()) {
+      dstDir.mkdirs()
+      val targetApk = File(dstDir, "debug.apk")
+      sourceApk.copyTo(targetApk, overwrite = true)
+    }
+  }
+}
+
+tasks.matching { it.name == "assembleDebug" || it.name == "packageDebug" }.configureEach {
+  finalizedBy(syncDebugApkToRootFolder)
+}
+
