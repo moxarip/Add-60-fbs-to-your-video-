@@ -1,0 +1,6 @@
+{
+  "name": "FlowRIFE Studio",
+  "description": "AI Frame Interpolation & Slow-Motion Video Studio powered by RIFE NCNN Vulkan and Hardware MediaCodec Pipeline",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

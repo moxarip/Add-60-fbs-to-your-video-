@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">FlowRIFE Studio</string>
+    <string name="tab_studio">الاستوديو (Studio)</string>
+    <string name="tab_queue">طابور المهام (Queue)</string>
+    <string name="tab_engine">إعدادات المحرك (Engine)</string>
+    <string name="tab_native">كود NDK / NCNN</string>
+    <string name="hero_title">Flowframes × RIFE NCNN Vulkan</string>
+    <string name="hero_subtitle">مضاعفة إطارات الفيديو بالذكاء الاصطناعي وتنعيم الحركة عبر Vulkan GPU</string>
+    <string name="select_video_btn">اختيار فيديو من الجهاز (Photo Picker)</string>
+    <string name="generate_demo_video_btn">توليد فيديو اختباري حقيقي (MP4 H.264 + AAC)</string>
+    <string name="add_to_queue_btn">إضافة لطابور المعالجة وبدء التشغيل</string>
+    <string name="scene_cut_label">كشف قطع المشاهد (Scene Cut Detection)</string>
+    <string name="audio_sync_label">المزامنة الصوتية الصارمة (Strict Audio Passthru &amp; PTS)</string>
+    <string name="thermal_oom_label">التدفق المستمر وإدارة الحرارة (Streaming Pipeline &amp; Thermal Guard)</string>
+    <string name="uhd_mode_label">وضع الدقة الفائقة (UHD Mode - 4K Optical Flow Scaling)</string>
+    <string name="tta_mode_label">وضع الدقة العالية (TTA Mode - Test-Time Augmentation)</string>
+</resources>
